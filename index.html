@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Pages 阻尼振盪模擬</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        
+        .control-group { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        .slider-label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .value-display { color: #007bff; font-weight: bold; }
+        
+        #plot { width: 100%; height: 500px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>阻尼振盪 (GitHub Pages 版)</h1>
+    <p style="text-align:center; color:#666;">所有運算皆在瀏覽器完成，無需後端伺服器</p>
+
+    <div class="control-group">
+        <div class="slider-label">
+            <label>Damping (b)</label>
+            <span id="val_b" class="value-display">0.1</span>
+        </div>
+        <input type="range" id="b" min="0" max="5" step="0.05" value="0.1">
+
+        <div class="slider-label">
+            <label>Amplitude (A)</label>
+            <span id="val_A" class="value-display">1</span>
+        </div>
+        <input type="range" id="A" min="0.1" max="5" step="0.1" value="1">
+
+        <div class="slider-label">
+            <label>Spring Const (k)</label>
+            <span id="val_k" class="value-display">1</span>
+        </div>
+        <input type="range" id="k" min="0.1" max="10" step="0.1" value="1">
+    </div>
+
+    <div id="plot"></div>
+</div>
+
+<script>
+    // 1. 定義數學運算函數 (對應原本 Python 的邏輯)
+    function calculateData(b, A, k) {
+        let t = [];
+        let y = [];
+        let steps = 500;
+        let maxTime = 20;
+
+        // 產生時間點 t
+        for (let i = 0; i <= steps; i++) {
+            t.push(i * (maxTime / steps));
+        }
+
+        // 計算位移 y
+        // 為了避免在 JS 處理複雜的複數運算庫，我們直接展開公式
+        // 你的 Python 邏輯：y = A * (exp(r1*t) - exp(r2*t)) / (r1 - r2)
+        
+        let delta = b * b - k;
+
+        for (let i = 0; i < t.length; i++) {
+            let time = t[i];
+            let val = 0;
+
+            if (delta < 0) {
+                // 欠阻尼 (Underdamped): b^2 < k
+                // 數學推導後，原本的複數公式會變成實數形式：
+                // y = (A / omega) * exp(-b*t) * sin(omega*t)
+                let omega = Math.sqrt(k - b * b);
+                if (omega === 0) omega = 0.0001; // 避免除以零
+                val = (A / omega) * Math.exp(-b * time) * Math.sin(omega * time);
+            } else {
+                // 過阻尼 (Overdamped) 或 臨界阻尼: b^2 >= k
+                let term = Math.sqrt(delta);
+                let r1 = -b + term;
+                let r2 = -b - term;
+                
+                if (r1 === r2) {
+                     // 臨界阻尼特殊解 (避免除以零)
+                     val = A * time * Math.exp(-b * time);
+                } else {
+                    val = A * (Math.exp(r1 * time) - Math.exp(r2 * time)) / (r1 - r2);
+                }
+            }
+            y.push(val);
+        }
+
+        return { t: t, y: y };
+    }
+
+    // 2. 畫圖函數
+    function drawPlot() {
+        // 獲取目前滑桿數值
+        let b = parseFloat(document.getElementById('b').value);
+        let A = parseFloat(document.getElementById('A').value);
+        let k = parseFloat(document.getElementById('k').value);
+
+        // 更新顯示文字
+        document.getElementById('val_b').innerText = b;
+        document.getElementById('val_A').innerText = A;
+        document.getElementById('val_k').innerText = k;
+
+        // 計算數據
+        let data = calculateData(b, A, k);
+
+        // Plotly 設定
+        let trace = {
+            x: data.t,
+            y: data.y,
+            mode: 'lines',
+            line: { color: '#007bff', width: 3 },
+            name: 'Displacement'
+        };
+
+        let layout = {
+            title: 'Damped Oscillation Analysis',
+            xaxis: { title: 'Time (t)' },
+            yaxis: { title: 'Displacement (y)' },
+            margin: { t: 40, r: 20, b: 40, l: 50 }
+        };
+
+        // 繪製
+        Plotly.newPlot('plot', [trace], layout, {responsive: true});
+    }
+
+    // 3. 綁定事件：當滑桿拉動時，重新畫圖
+    document.getElementById('b').addEventListener('input', drawPlot);
+    document.getElementById('A').addEventListener('input', drawPlot);
+    document.getElementById('k').addEventListener('input', drawPlot);
+
+    // 一開始先畫一次
+    drawPlot();
+</script>
+
+</body>
+</html>
