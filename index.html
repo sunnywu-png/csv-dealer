@@ -106,8 +106,6 @@
             </div>
             <div class="btn-group">
                 <button class="action-btn btn-primary" onclick="drawChart()">🚀 網頁繪圖</button>
-            </div>
-            <div class="btn-group">
                 <button class="action-btn btn-python" onclick="downloadPythonCode()">🐍 下載 Python</button>
             </div>
         </div>
@@ -357,20 +355,100 @@
         }, { responsive: true });
     }
 
+    // 5. Python 程式碼生成 (已更新為符合使用者需求的風格)
     function downloadPythonCode() {
-        // 簡易版 Python 下載邏輯 (為節省長度，保留與上版相同功能)
-        const chartTitle = document.getElementById('chart-title').value || "Plot";
-        let pythonCode = `import pandas as pd\nimport matplotlib.pyplot as plt\nplt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Arial Unicode MS']\nplt.rcParams['axes.unicode_minus'] = False\nplt.figure(figsize=(10, 6))\n`;
-        document.querySelectorAll('.layer-card').forEach((card, i) => {
-            const f = card.querySelector('.file-select').value;
-            const x = card.querySelector('.x-select').value;
-            const y = card.querySelector('.y-select').value;
-            const t = card.querySelector('.type-select').value;
-            if(f) pythonCode += `try:\n    df = pd.read_csv('${f}')\n    if '${t}'!='bar': df=df.sort_values('${x}')\n    plt.plot(df['${x}'], df['${y}'], label='${y}', marker='o' if '${t}'=='line' else '')\nexcept: pass\n`;
+        const layers = document.querySelectorAll('.layer-card');
+        if (layers.length === 0) {
+            alert('請先新增圖層並設定資料');
+            return;
+        }
+
+        const chartTitle = document.getElementById('chart-title').value || "Plot Title";
+        const xAxisTitle = document.getElementById('xaxis-title').value || "X Axis";
+        const yAxisTitle = document.getElementById('yaxis-title').value || "Y Axis";
+
+        let pythonCode = `import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import os
+import platform
+
+# --- 自動設定中文字型 (避免亂碼) ---
+def set_chinese_font():
+    system = platform.system()
+    font_path = None
+    if system == 'Windows':
+        font_path = 'C:/Windows/Fonts/msjh.ttc' # 微軟正黑體
+    elif system == 'Darwin': # macOS
+        font_path = '/System/Library/Fonts/PingFang.ttc' # 蘋方
+    
+    if font_path and os.path.exists(font_path):
+        import matplotlib.font_manager as fm
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+    else:
+        plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial Unicode MS']
+    plt.rcParams['axes.unicode_minus'] = False 
+
+set_chinese_font()
+
+# --- 繪圖設定 ---
+plt.figure(figsize=(10,6))
+`;
+
+        layers.forEach((card, index) => {
+            const fileName = card.querySelector('.file-select').value;
+            const xCol = card.querySelector('.x-select').value;
+            const yCol = card.querySelector('.y-select').value;
+            const type = card.querySelector('.type-select').value;
+            let name = card.querySelector('.name-input').value;
+            
+            if (!fileName) return;
+            if (!name) name = `${yCol}`;
+
+            // 仿照使用者提供的風格：先讀檔，定義變數，再畫圖
+            pythonCode += `
+# Layer ${index + 1}: ${fileName}
+try:
+    df_${index} = pd.read_csv('${fileName}')
+    # 排序 (針對折線圖)
+    if '${type}' != 'bar':
+        df_${index} = df_${index}.sort_values(by='${xCol}')
+        
+    x_${index} = df_${index}['${xCol}']
+    y_${index} = df_${index}['${yCol}']
+    
+    if '${type}' == 'bar':
+        plt.bar(x_${index}, y_${index}, label='${name}', alpha=0.7)
+    elif '${type}' == 'scatter':
+        plt.scatter(x_${index}, y_${index}, label='${name}')
+    else: # line
+        plt.plot(x_${index}, y_${index}, label='${name}')
+        
+except Exception as e:
+    print(f"Skipping layer ${index+1} ({fileName}): {e}")
+`;
         });
-        pythonCode += `plt.title('${chartTitle}')\nplt.legend()\nplt.grid(True)\nplt.show()`;
-        const blob = new Blob([pythonCode], {type: 'text/x-python'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'plot.py'; a.click();
+
+        // 結尾設定
+        pythonCode += `
+plt.title('${chartTitle}')
+plt.xlabel('${xAxisTitle}')
+plt.ylabel('${yAxisTitle}')
+plt.legend(loc='upper right')
+plt.grid()
+plt.show()
+`;
+
+        const blob = new Blob([pythonCode], { type: 'text/x-python' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'plot_script.py';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     addNewLayer();
@@ -378,4 +456,3 @@
 
 </body>
 </html>
-
