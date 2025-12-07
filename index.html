@@ -3,286 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>多重 CSV 疊圖工具</title>
+    <title>CSV 進階圖層繪圖工具</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        :root { --primary: #2563eb; --danger: #dc2626; --bg: #f8fafc; --card: #ffffff; }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: var(--bg); color: #334155; }
+        :root { --primary: #4f46e5; --danger: #ef4444; --bg: #f3f4f6; --card: #ffffff; --border: #e5e7eb; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: var(--bg); color: #1f2937; }
         
-        .container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        /* 版面配置 */
+        .layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
         
-        /* 左側控制面板 */
-        .sidebar { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); height: fit-content; }
-        .main-content { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        /* 左側控制區 */
+        .sidebar { display: flex; flex-direction: column; gap: 15px; }
+        .card { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); }
+        
+        h2 { font-size: 1.1rem; margin-top: 0; margin-bottom: 15px; color: #374151; border-bottom: 2px solid var(--primary); padding-bottom: 8px; display: inline-block; }
+        
+        /* 輸入元件樣式 */
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #4b5563; }
+        input[type="text"], input[type="file"], select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem; margin-bottom: 10px; transition: border 0.2s; }
+        input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+        
+        /* 全局設定區 */
+        .global-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .full-width { grid-column: 1 / -1; }
 
-        h2, h3 { margin-top: 0; color: #1e293b; font-size: 1.2rem; margin-bottom: 15px; }
+        /* 圖層卡片樣式 */
+        .layer-list { display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto; padding-right: 5px; }
+        .layer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid var(--primary); padding: 15px; border-radius: 6px; position: relative; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         
-        .input-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9rem; }
-        select, input[type="file"], input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
-        
-        button { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .layer-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .layer-title { font-weight: bold; font-size: 0.9rem; color: var(--primary); }
+        .btn-remove { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0; }
+        .btn-remove:hover { color: var(--danger); }
+
+        .layer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        /* 按鈕樣式 */
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        button { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; flex: 1; }
         .btn-primary { background-color: var(--primary); color: white; }
-        .btn-primary:hover { background-color: #1d4ed8; }
-        .btn-add { background-color: #10b981; color: white; margin-top: 10px; }
-        .btn-add:hover { background-color: #059669; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: white; border: 1px solid #d1d5db; color: #374151; }
+        .btn-secondary:hover { background-color: #f3f4f6; }
         
-        /* 檔案列表標籤 */
-        .file-tag { display: inline-block; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin: 2px; }
+        /* 檔案狀態標籤 */
+        #file-status { margin-top: 5px; font-size: 0.85rem; color: #059669; }
 
-        /* 已選圖層列表 (Series List) */
-        #series-list { margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; max-height: 400px; overflow-y: auto; }
-        .series-item { background: #f1f5f9; padding: 10px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .series-info { font-size: 0.85rem; }
-        .series-info strong { display: block; color: #0f172a; }
-        .btn-remove { background: transparent; color: var(--danger); width: auto; padding: 5px; font-size: 1.2rem; line-height: 1; }
-        .btn-remove:hover { background: #fee2e2; }
+        /* 右側繪圖區 */
+        .plot-container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: sticky; top: 20px; }
+        #plot-area { width: 100%; height: 700px; }
 
-        /* 手機版 RWD */
-        @media (max-width: 768px) {
-            .container { grid-template-columns: 1fr; }
-        }
-        
-        #plot-area { height: 600px; width: 100%; }
+        @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="layout">
     <div class="sidebar">
-        <h2>1. 資料來源</h2>
-        <div class="input-group">
-            <label>上傳 CSV (可多選)</label>
-            <input type="file" id="csv-files" accept=".csv" multiple> 
+        
+        <div class="card">
+            <h2>📂 1. 資料來源</h2>
+            <label>上傳 CSV 檔案 (可多選)</label>
+            <input type="file" id="csv-files" accept=".csv" multiple>
+            <div id="file-status">尚未載入檔案</div>
         </div>
-        <div id="file-status-area" style="margin-bottom: 20px;"></div>
 
-        <h2>2. 新增圖層 (Series)</h2>
-        <div class="input-group">
-            <label>選擇檔案來源</label>
-            <select id="source-file-select" disabled><option>請先上傳檔案</option></select>
+        <div class="card">
+            <h2>⚙️ 2. 圖表設定</h2>
+            <div class="global-settings">
+                <div class="full-width">
+                    <label>圖表主標題</label>
+                    <input type="text" id="chart-title" placeholder="例如：年度銷售趨勢圖">
+                </div>
+                <div>
+                    <label>X 軸名稱</label>
+                    <input type="text" id="xaxis-title" placeholder="例如：日期">
+                </div>
+                <div>
+                    <label>Y 軸名稱</label>
+                    <input type="text" id="yaxis-title" placeholder="例如：金額">
+                </div>
+            </div>
         </div>
-        <div class="input-group">
-            <label>X 軸欄位 (橫軸)</label>
-            <select id="x-axis-select"></select>
-        </div>
-        <div class="input-group">
-            <label>Y 軸欄位 (縱軸)</label>
-            <select id="y-axis-select"></select>
-        </div>
-        <div class="input-group">
-            <label>圖表類型</label>
-            <select id="chart-type">
-                <option value="scatter">折線圖 (Lines+Markers)</option>
-                <option value="bar">長條圖 (Bar)</option>
-                <option value="markers">散佈圖 (Markers Only)</option>
-            </select>
-        </div>
-        <div class="input-group">
-            <label>圖例名稱 (選填)</label>
-            <input type="text" id="series-name" placeholder="例如：2023年數據">
-        </div>
-        <button id="btn-add-series" class="btn-add" disabled>+ 加入此圖層</button>
 
-        <div id="series-list">
-            <h3>已選圖層 (0)</h3>
-            <div id="series-container"></div>
+        <div class="card">
+            <div class="layer-header">
+                <h2>📚 3. 圖層管理</h2>
+                <span id="layer-count" style="font-size: 0.8rem; color: #6b7280; padding-top: 5px;">0 個圖層</span>
+            </div>
+            
+            <div id="layer-container" class="layer-list">
+                <div style="text-align: center; color: #9ca3af; padding: 20px; font-style: italic;" id="empty-msg">
+                    請點擊下方按鈕新增圖層
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-secondary" onclick="addNewLayer()">+ 新增空白圖層</button>
+                <button class="btn-primary" onclick="drawChart()">🚀 繪製圖表</button>
+            </div>
         </div>
     </div>
 
-    <div class="main-content">
-        <button id="btn-plot" class="btn-primary">🔄 更新圖表</button>
+    <div class="plot-container">
         <div id="plot-area"></div>
     </div>
 </div>
 
 <script>
-    // 全域變數儲存資料
-    const filesData = {}; // 格式: { "filename1": { data: [], headers: [] }, ... }
-    let seriesList = [];  // 儲存使用者定義的圖層設定
+    // 全域變數
+    const filesData = {}; // 儲存 CSV 資料: { "filename": {header:[], data:[]} }
+    let layerCounter = 0; // 用於產生唯一 ID
 
-    // 1. 監聽檔案上傳 (支援多檔)
-    document.getElementById('csv-files').addEventListener('change', function(event) {
-        const files = event.target.files;
+    // 1. 檔案上傳處理
+    document.getElementById('csv-files').addEventListener('change', function(e) {
+        const files = e.target.files;
         if (!files.length) return;
 
-        const statusArea = document.getElementById('file-status-area');
-        statusArea.innerHTML = '讀取中...';
+        const statusDiv = document.getElementById('file-status');
+        statusDiv.innerHTML = `⏳ 讀取中...`;
         
         let loadedCount = 0;
-
         Array.from(files).forEach(file => {
             Papa.parse(file, {
                 header: true,
                 dynamicTyping: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    // 儲存解析後的資料
                     filesData[file.name] = {
                         data: results.data,
                         headers: results.meta.fields
                     };
-                    
                     loadedCount++;
-                    // 當所有檔案都讀取完畢
-                    if (loadedCount === files.length) {
-                        updateFileSelect();
-                        displayLoadedFiles();
+                    
+                    if(loadedCount === files.length) {
+                        statusDiv.innerHTML = `✅ 已載入 ${Object.keys(filesData).length} 個檔案`;
+                        // 更新所有現有圖層的檔案選單
+                        refreshAllFileSelects();
                     }
                 }
             });
         });
     });
 
-    // 顯示已載入的檔案標籤
-    function displayLoadedFiles() {
-        const names = Object.keys(filesData);
-        const area = document.getElementById('file-status-area');
-        area.innerHTML = names.map(n => `<span class="file-tag">📄 ${n}</span>`).join('');
+    // 2. 新增圖層 (UI 操作)
+    function addNewLayer() {
+        document.getElementById('empty-msg').style.display = 'none';
+        layerCounter++;
+        
+        const container = document.getElementById('layer-container');
+        const layerId = `layer-${layerCounter}`;
+        
+        const div = document.createElement('div');
+        div.className = 'layer-card';
+        div.id = layerId;
+        div.innerHTML = `
+            <div class="layer-header">
+                <span class="layer-title">圖層 #${layerCounter}</span>
+                <button class="btn-remove" onclick="removeLayer('${layerId}')" title="刪除圖層">×</button>
+            </div>
+            
+            <div class="full-width">
+                <label>來源檔案</label>
+                <select class="file-select" onchange="updateLayerColumns('${layerId}')">
+                    <option value="">請選擇檔案...</option>
+                </select>
+            </div>
+            
+            <div class="layer-grid">
+                <div>
+                    <label>X 軸欄位</label>
+                    <select class="x-select"><option>-</option></select>
+                </div>
+                <div>
+                    <label>Y 軸欄位</label>
+                    <select class="y-select"><option>-</option></select>
+                </div>
+                <div>
+                    <label>圖表類型</label>
+                    <select class="type-select">
+                        <option value="scatter">折線圖</option>
+                        <option value="bar">長條圖</option>
+                        <option value="markers">散佈圖</option>
+                    </select>
+                </div>
+                <div>
+                    <label>圖例名稱</label>
+                    <input type="text" class="name-input" placeholder="自訂名稱">
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(div);
+        
+        // 填充剛剛新增的 select
+        const fileSelect = div.querySelector('.file-select');
+        populateFileOptions(fileSelect);
+        updateLayerCount();
     }
 
-    // 更新「來源檔案」下拉選單
-    function updateFileSelect() {
-        const fileSelect = document.getElementById('source-file-select');
-        fileSelect.innerHTML = '';
-        fileSelect.disabled = false;
+    // 3. 刪除圖層
+    function removeLayer(id) {
+        document.getElementById(id).remove();
+        updateLayerCount();
+        if(document.querySelectorAll('.layer-card').length === 0) {
+            document.getElementById('empty-msg').style.display = 'block';
+        }
+    }
 
-        Object.keys(filesData).forEach(filename => {
-            fileSelect.add(new Option(filename, filename));
+    function updateLayerCount() {
+        const count = document.querySelectorAll('.layer-card').length;
+        document.getElementById('layer-count').innerText = `${count} 個圖層`;
+    }
+
+    // 4. 下拉選單邏輯
+    
+    // 填充單一選單的檔案選項
+    function populateFileOptions(selectElement) {
+        const currentVal = selectElement.value; // 保留原本選的值
+        selectElement.innerHTML = '<option value="">請選擇檔案...</option>';
+        Object.keys(filesData).forEach(fname => {
+            selectElement.add(new Option(fname, fname));
         });
-
-        // 觸發一次欄位更新
-        updateColumnSelects();
+        if (Object.keys(filesData).includes(currentVal)) {
+            selectElement.value = currentVal;
+        }
     }
 
-    // 當選擇不同檔案時，更新 X/Y 欄位選項
-    document.getElementById('source-file-select').addEventListener('change', updateColumnSelects);
+    // 當有新檔案上傳時，刷新所有圖層的檔案選單
+    function refreshAllFileSelects() {
+        document.querySelectorAll('.file-select').forEach(select => {
+            populateFileOptions(select);
+        });
+    }
 
-    function updateColumnSelects() {
-        const filename = document.getElementById('source-file-select').value;
-        const xSelect = document.getElementById('x-axis-select');
-        const ySelect = document.getElementById('y-axis-select');
-        const addBtn = document.getElementById('btn-add-series');
+    // 當選擇檔案改變時，更新該圖層的 X/Y 選項
+    function updateLayerColumns(layerId) {
+        const card = document.getElementById(layerId);
+        const fileName = card.querySelector('.file-select').value;
+        const xSelect = card.querySelector('.x-select');
+        const ySelect = card.querySelector('.y-select');
 
         xSelect.innerHTML = '';
         ySelect.innerHTML = '';
 
-        if (!filesData[filename]) return;
+        if (!fileName || !filesData[fileName]) {
+            xSelect.add(new Option('-', ''));
+            ySelect.add(new Option('-', ''));
+            return;
+        }
 
-        const headers = filesData[filename].headers;
+        const headers = filesData[fileName].headers;
         headers.forEach(h => {
             xSelect.add(new Option(h, h));
             ySelect.add(new Option(h, h));
         });
-        
-        // 預設 Y 選第二個
+
+        // 智慧預選 Y 軸 (選第二個)
         if(headers.length > 1) ySelect.selectedIndex = 1;
-
-        addBtn.disabled = false;
     }
 
-    // 2. 加入圖層 (Add Series)
-    document.getElementById('btn-add-series').addEventListener('click', function() {
-        const filename = document.getElementById('source-file-select').value;
-        const xCol = document.getElementById('x-axis-select').value;
-        const yCol = document.getElementById('y-axis-select').value;
-        const type = document.getElementById('chart-type').value;
-        const customName = document.getElementById('series-name').value;
-
-        // 產生一個唯一 ID 方便刪除
-        const id = Date.now();
-        const displayName = customName || `${yCol} (${filename})`;
-
-        const seriesConfig = {
-            id: id,
-            filename: filename,
-            xCol: xCol,
-            yCol: yCol,
-            type: type,
-            name: displayName
-        };
-
-        seriesList.push(seriesConfig);
-        renderSeriesList();
-        
-        // 自動觸發繪圖 (可選)
-        // drawChart(); 
-    });
-
-    // 渲染圖層列表 UI
-    function renderSeriesList() {
-        const container = document.getElementById('series-container');
-        const title = document.querySelector('#series-list h3');
-        container.innerHTML = '';
-        title.innerText = `已選圖層 (${seriesList.length})`;
-
-        seriesList.forEach((s, index) => {
-            const div = document.createElement('div');
-            div.className = 'series-item';
-            div.innerHTML = `
-                <div class="series-info">
-                    <strong>${s.name}</strong>
-                    <span style="color:#64748b">X: ${s.xCol} | Y: ${s.yCol}</span>
-                    <span style="font-size:0.8em; color:#94a3b8">${s.filename}</span>
-                </div>
-                <button class="btn-remove" onclick="removeSeries(${s.id})">×</button>
-            `;
-            container.appendChild(div);
-        });
-    }
-
-    // 刪除圖層函數 (需設為全域以便 HTML onclick 呼叫)
-    window.removeSeries = function(id) {
-        seriesList = seriesList.filter(s => s.id !== id);
-        renderSeriesList();
-    };
-
-    // 3. 繪圖邏輯 (Render Chart)
-    document.getElementById('btn-plot').addEventListener('click', drawChart);
-
+    // 5. 繪圖主邏輯
     function drawChart() {
-        if (seriesList.length === 0) {
-            Plotly.newPlot('plot-area', [], {title: '請先加入圖層'});
-            return;
-        }
+        const layers = document.querySelectorAll('.layer-card');
+        const traces = [];
+        
+        // 收集所有圖層設定
+        layers.forEach(card => {
+            const fileName = card.querySelector('.file-select').value;
+            const xCol = card.querySelector('.x-select').value;
+            const yCol = card.querySelector('.y-select').value;
+            const type = card.querySelector('.type-select').value;
+            const nameInput = card.querySelector('.name-input').value;
 
-        const traces = seriesList.map(s => {
-            const fileData = filesData[s.filename].data;
+            if (!fileName || !filesData[fileName]) return; // 跳過未設定的
+
+            const rawData = filesData[fileName].data;
             
-            // 提取與排序數據
-            let plotData = fileData.map(row => ({
-                x: row[s.xCol],
-                y: row[s.yCol]
-            })).filter(item => item.x != null && item.y != null);
+            // 資料清洗與整理
+            let plotData = rawData.map(row => ({
+                x: row[xCol],
+                y: row[yCol]
+            })).filter(d => d.x != null && d.y != null);
 
-            // 針對折線圖排序 X 軸
-            if (s.type === 'scatter' || s.type === 'bar') {
+            // 排序 (針對折線圖)
+            if (type !== 'bar') { // Bar chart 有時不需要自動排序，視需求而定
                 plotData.sort((a, b) => (a.x > b.x ? 1 : -1));
             }
 
+            // 建立 Trace
             const trace = {
                 x: plotData.map(d => d.x),
                 y: plotData.map(d => d.y),
-                name: s.name,
-                type: s.type === 'bar' ? 'bar' : 'scatter',
-                mode: s.type === 'markers' ? 'markers' : (s.type === 'bar' ? undefined : 'lines+markers')
+                name: nameInput || `${yCol} (${fileName})`, // 若沒填名稱，用預設
+                type: type === 'bar' ? 'bar' : 'scatter',
+                mode: type === 'markers' ? 'markers' : (type === 'bar' ? undefined : 'lines+markers')
             };
-            
-            return trace;
+            traces.push(trace);
         });
 
+        // 讀取全局設定
+        const chartTitle = document.getElementById('chart-title').value || '數據圖表';
+        const xAxisTitle = document.getElementById('xaxis-title').value;
+        const yAxisTitle = document.getElementById('yaxis-title').value;
+
         const layout = {
-            title: '多數據整合圖表',
-            xaxis: { title: 'X 軸' }, // 因為可能有多個不同單位的 X，這裡給通用名稱
-            yaxis: { title: '數值' },
-            margin: { t: 50, l: 50, r: 30, b: 50 },
-            hovermode: 'closest',
-            legend: { x: 1, xanchor: 'right', y: 1 }
+            title: { text: chartTitle, font: { size: 24 } },
+            xaxis: { title: { text: xAxisTitle }, automargin: true },
+            yaxis: { title: { text: yAxisTitle }, automargin: true },
+            margin: { t: 60, l: 60, r: 40, b: 80 },
+            legend: { orientation: 'h', y: -0.2 }, // 圖例放下面
+            hovermode: 'closest'
         };
 
-        Plotly.newPlot('plot-area', traces, layout, {responsive: true});
+        const config = { responsive: true };
+
+        Plotly.newPlot('plot-area', traces, layout, config);
     }
+    
+    // 初始化時產生一個空白圖層
+    addNewLayer();
 </script>
 
 </body>
