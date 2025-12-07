@@ -3,35 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV 進階圖層繪圖工具</title>
+    <title>CSV 繪圖與 Python 轉出工具</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        :root { --primary: #4f46e5; --danger: #ef4444; --bg: #f3f4f6; --card: #ffffff; --border: #e5e7eb; }
+        :root { --primary: #4f46e5; --secondary: #10b981; --danger: #ef4444; --bg: #f3f4f6; --card: #ffffff; --border: #e5e7eb; }
         body { font-family: 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: var(--bg); color: #1f2937; }
         
-        /* 版面配置 */
         .layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
         
-        /* 左側控制區 */
         .sidebar { display: flex; flex-direction: column; gap: 15px; }
         .card { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); }
         
         h2 { font-size: 1.1rem; margin-top: 0; margin-bottom: 15px; color: #374151; border-bottom: 2px solid var(--primary); padding-bottom: 8px; display: inline-block; }
         
-        /* 輸入元件樣式 */
         label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #4b5563; }
         input[type="text"], input[type="file"], select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem; margin-bottom: 10px; transition: border 0.2s; }
         input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
         
-        /* 全局設定區 */
         .global-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .full-width { grid-column: 1 / -1; }
 
-        /* 圖層卡片樣式 */
         .layer-list { display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto; padding-right: 5px; }
-        .layer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid var(--primary); padding: 15px; border-radius: 6px; position: relative; animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .layer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid var(--primary); padding: 15px; border-radius: 6px; position: relative; }
         
         .layer-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
         .layer-title { font-weight: bold; font-size: 0.9rem; color: var(--primary); }
@@ -40,18 +34,16 @@
 
         .layer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-        /* 按鈕樣式 */
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
-        button { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; flex: 1; }
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;}
+        button { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; flex: 1; min-width: 120px;}
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-primary:hover { background-color: #4338ca; }
         .btn-secondary { background-color: white; border: 1px solid #d1d5db; color: #374151; }
         .btn-secondary:hover { background-color: #f3f4f6; }
+        .btn-python { background-color: var(--secondary); color: white; }
+        .btn-python:hover { background-color: #059669; }
         
-        /* 檔案狀態標籤 */
         #file-status { margin-top: 5px; font-size: 0.85rem; color: #059669; }
-
-        /* 右側繪圖區 */
         .plot-container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: sticky; top: 20px; }
         #plot-area { width: 100%; height: 700px; }
 
@@ -63,6 +55,7 @@
 <div class="layout">
     <div class="sidebar">
         
+        <!-- 1. 資料上傳 -->
         <div class="card">
             <h2>📂 1. 資料來源</h2>
             <label>上傳 CSV 檔案 (可多選)</label>
@@ -70,6 +63,7 @@
             <div id="file-status">尚未載入檔案</div>
         </div>
 
+        <!-- 2. 全局設定 -->
         <div class="card">
             <h2>⚙️ 2. 圖表設定</h2>
             <div class="global-settings">
@@ -88,6 +82,7 @@
             </div>
         </div>
 
+        <!-- 3. 圖層管理 -->
         <div class="card">
             <div class="layer-header">
                 <h2>📚 3. 圖層管理</h2>
@@ -101,8 +96,11 @@
             </div>
 
             <div class="btn-group">
-                <button class="btn-secondary" onclick="addNewLayer()">+ 新增空白圖層</button>
-                <button class="btn-primary" onclick="drawChart()">🚀 繪製圖表</button>
+                <button class="btn-secondary" onclick="addNewLayer()">+ 新增圖層</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn-primary" onclick="drawChart()">🚀 網頁繪圖</button>
+                <button class="btn-python" onclick="downloadPythonCode()">🐍 下載 Python</button>
             </div>
         </div>
     </div>
@@ -113,11 +111,10 @@
 </div>
 
 <script>
-    // 全域變數
-    const filesData = {}; // 儲存 CSV 資料: { "filename": {header:[], data:[]} }
-    let layerCounter = 0; // 用於產生唯一 ID
+    const filesData = {}; 
+    let layerCounter = 0; 
 
-    // 1. 檔案上傳處理
+    // 1. 檔案上傳
     document.getElementById('csv-files').addEventListener('change', function(e) {
         const files = e.target.files;
         if (!files.length) return;
@@ -137,10 +134,8 @@
                         headers: results.meta.fields
                     };
                     loadedCount++;
-                    
                     if(loadedCount === files.length) {
                         statusDiv.innerHTML = `✅ 已載入 ${Object.keys(filesData).length} 個檔案`;
-                        // 更新所有現有圖層的檔案選單
                         refreshAllFileSelects();
                     }
                 }
@@ -148,11 +143,10 @@
         });
     });
 
-    // 2. 新增圖層 (UI 操作)
+    // 2. 圖層操作
     function addNewLayer() {
         document.getElementById('empty-msg').style.display = 'none';
         layerCounter++;
-        
         const container = document.getElementById('layer-container');
         const layerId = `layer-${layerCounter}`;
         
@@ -162,170 +156,231 @@
         div.innerHTML = `
             <div class="layer-header">
                 <span class="layer-title">圖層 #${layerCounter}</span>
-                <button class="btn-remove" onclick="removeLayer('${layerId}')" title="刪除圖層">×</button>
+                <button class="btn-remove" onclick="removeLayer('${layerId}')">×</button>
             </div>
-            
             <div class="full-width">
                 <label>來源檔案</label>
-                <select class="file-select" onchange="updateLayerColumns('${layerId}')">
-                    <option value="">請選擇檔案...</option>
-                </select>
+                <select class="file-select" onchange="updateLayerColumns('${layerId}')"><option value="">請選擇檔案...</option></select>
             </div>
-            
             <div class="layer-grid">
-                <div>
-                    <label>X 軸欄位</label>
-                    <select class="x-select"><option>-</option></select>
-                </div>
-                <div>
-                    <label>Y 軸欄位</label>
-                    <select class="y-select"><option>-</option></select>
-                </div>
-                <div>
-                    <label>圖表類型</label>
+                <div><label>X 軸</label><select class="x-select"><option>-</option></select></div>
+                <div><label>Y 軸</label><select class="y-select"><option>-</option></select></div>
+                <div><label>類型</label>
                     <select class="type-select">
-                        <option value="scatter">折線圖</option>
+                        <option value="line">折線圖</option>
+                        <option value="scatter">散佈圖</option>
                         <option value="bar">長條圖</option>
-                        <option value="markers">散佈圖</option>
                     </select>
                 </div>
-                <div>
-                    <label>圖例名稱</label>
-                    <input type="text" class="name-input" placeholder="自訂名稱">
-                </div>
+                <div><label>圖例名稱</label><input type="text" class="name-input" placeholder="自訂名稱"></div>
             </div>
         `;
-        
         container.appendChild(div);
-        
-        // 填充剛剛新增的 select
-        const fileSelect = div.querySelector('.file-select');
-        populateFileOptions(fileSelect);
+        populateFileOptions(div.querySelector('.file-select'));
         updateLayerCount();
     }
 
-    // 3. 刪除圖層
     function removeLayer(id) {
         document.getElementById(id).remove();
         updateLayerCount();
-        if(document.querySelectorAll('.layer-card').length === 0) {
-            document.getElementById('empty-msg').style.display = 'block';
-        }
+        if(document.querySelectorAll('.layer-card').length === 0) document.getElementById('empty-msg').style.display = 'block';
     }
 
     function updateLayerCount() {
-        const count = document.querySelectorAll('.layer-card').length;
-        document.getElementById('layer-count').innerText = `${count} 個圖層`;
+        document.getElementById('layer-count').innerText = `${document.querySelectorAll('.layer-card').length} 個圖層`;
     }
 
-    // 4. 下拉選單邏輯
-    
-    // 填充單一選單的檔案選項
+    // 3. 選單邏輯
     function populateFileOptions(selectElement) {
-        const currentVal = selectElement.value; // 保留原本選的值
+        const currentVal = selectElement.value;
         selectElement.innerHTML = '<option value="">請選擇檔案...</option>';
-        Object.keys(filesData).forEach(fname => {
-            selectElement.add(new Option(fname, fname));
-        });
-        if (Object.keys(filesData).includes(currentVal)) {
-            selectElement.value = currentVal;
-        }
+        Object.keys(filesData).forEach(fname => selectElement.add(new Option(fname, fname)));
+        if (Object.keys(filesData).includes(currentVal)) selectElement.value = currentVal;
     }
 
-    // 當有新檔案上傳時，刷新所有圖層的檔案選單
     function refreshAllFileSelects() {
-        document.querySelectorAll('.file-select').forEach(select => {
-            populateFileOptions(select);
-        });
+        document.querySelectorAll('.file-select').forEach(s => populateFileOptions(s));
     }
 
-    // 當選擇檔案改變時，更新該圖層的 X/Y 選項
     function updateLayerColumns(layerId) {
         const card = document.getElementById(layerId);
         const fileName = card.querySelector('.file-select').value;
         const xSelect = card.querySelector('.x-select');
         const ySelect = card.querySelector('.y-select');
+        xSelect.innerHTML = ''; ySelect.innerHTML = '';
 
-        xSelect.innerHTML = '';
-        ySelect.innerHTML = '';
+        if (!fileName || !filesData[fileName]) return;
 
-        if (!fileName || !filesData[fileName]) {
-            xSelect.add(new Option('-', ''));
-            ySelect.add(new Option('-', ''));
-            return;
-        }
-
-        const headers = filesData[fileName].headers;
-        headers.forEach(h => {
+        filesData[fileName].headers.forEach(h => {
             xSelect.add(new Option(h, h));
             ySelect.add(new Option(h, h));
         });
-
-        // 智慧預選 Y 軸 (選第二個)
-        if(headers.length > 1) ySelect.selectedIndex = 1;
+        if(filesData[fileName].headers.length > 1) ySelect.selectedIndex = 1;
     }
 
-    // 5. 繪圖主邏輯
+    // 4. 網頁繪圖 (Plotly)
     function drawChart() {
         const layers = document.querySelectorAll('.layer-card');
         const traces = [];
         
-        // 收集所有圖層設定
         layers.forEach(card => {
             const fileName = card.querySelector('.file-select').value;
             const xCol = card.querySelector('.x-select').value;
             const yCol = card.querySelector('.y-select').value;
             const type = card.querySelector('.type-select').value;
-            const nameInput = card.querySelector('.name-input').value;
+            const name = card.querySelector('.name-input').value;
 
-            if (!fileName || !filesData[fileName]) return; // 跳過未設定的
+            if (!fileName || !filesData[fileName]) return;
+            const data = filesData[fileName].data.filter(d => d[xCol] != null && d[yCol] != null);
+            if (type !== 'bar') data.sort((a, b) => (a[xCol] > b[xCol] ? 1 : -1));
 
-            const rawData = filesData[fileName].data;
-            
-            // 資料清洗與整理
-            let plotData = rawData.map(row => ({
-                x: row[xCol],
-                y: row[yCol]
-            })).filter(d => d.x != null && d.y != null);
-
-            // 排序 (針對折線圖)
-            if (type !== 'bar') { // Bar chart 有時不需要自動排序，視需求而定
-                plotData.sort((a, b) => (a.x > b.x ? 1 : -1));
-            }
-
-            // 建立 Trace
-            const trace = {
-                x: plotData.map(d => d.x),
-                y: plotData.map(d => d.y),
-                name: nameInput || `${yCol} (${fileName})`, // 若沒填名稱，用預設
+            traces.push({
+                x: data.map(d => d[xCol]),
+                y: data.map(d => d[yCol]),
+                name: name || `${yCol} (${fileName})`,
                 type: type === 'bar' ? 'bar' : 'scatter',
-                mode: type === 'markers' ? 'markers' : (type === 'bar' ? undefined : 'lines+markers')
-            };
-            traces.push(trace);
+                mode: type === 'line' ? 'lines+markers' : (type === 'scatter' ? 'markers' : undefined)
+            });
         });
 
-        // 讀取全局設定
-        const chartTitle = document.getElementById('chart-title').value || '數據圖表';
-        const xAxisTitle = document.getElementById('xaxis-title').value;
-        const yAxisTitle = document.getElementById('yaxis-title').value;
-
         const layout = {
-            title: { text: chartTitle, font: { size: 24 } },
-            xaxis: { title: { text: xAxisTitle }, automargin: true },
-            yaxis: { title: { text: yAxisTitle }, automargin: true },
-            margin: { t: 60, l: 60, r: 40, b: 80 },
-            legend: { orientation: 'h', y: -0.2 }, // 圖例放下面
+            title: document.getElementById('chart-title').value,
+            xaxis: { title: document.getElementById('xaxis-title').value, automargin: true },
+            yaxis: { title: document.getElementById('yaxis-title').value, automargin: true },
+            margin: { t: 50, l: 60, r: 40, b: 80 },
+            legend: { orientation: 'h', y: -0.2 },
             hovermode: 'closest'
         };
-
-        const config = { responsive: true };
-
-        Plotly.newPlot('plot-area', traces, layout, config);
+        Plotly.newPlot('plot-area', traces, layout, { responsive: true });
     }
+
+    // 5. Python 程式碼生成與下載 (核心新增功能)
+    function downloadPythonCode() {
+        const layers = document.querySelectorAll('.layer-card');
+        if (layers.length === 0) {
+            alert('請先新增圖層並設定資料');
+            return;
+        }
+
+        const chartTitle = document.getElementById('chart-title').value || "Plot Title";
+        const xAxisTitle = document.getElementById('xaxis-title').value || "X Axis";
+        const yAxisTitle = document.getElementById('yaxis-title').value || "Y Axis";
+
+        let pythonCode = `
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import os
+import platform
+
+# --- 自動設定中文字型 (避免亂碼) ---
+def set_chinese_font():
+    system = platform.system()
+    font_path = None
     
-    // 初始化時產生一個空白圖層
-    addNewLayer();
+    if system == 'Windows':
+        font_path = 'C:/Windows/Fonts/msjh.ttc' # 微軟正黑體
+    elif system == 'Darwin': # macOS
+        font_path = '/System/Library/Fonts/PingFang.ttc' # 蘋方
+    
+    if font_path and os.path.exists(font_path):
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+    else:
+        # 備用：嘗試搜尋常見中文字型
+        plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial Unicode MS']
+
+    plt.rcParams['axes.unicode_minus'] = False # 解決負號顯示問題
+
+set_chinese_font()
+
+# --- 繪圖設定 ---
+plt.figure(figsize=(10, 6))
+`;
+
+        layers.forEach((card, index) => {
+            const fileName = card.querySelector('.file-select').value;
+            const xCol = card.querySelector('.x-select').value;
+            const yCol = card.querySelector('.y-select').value;
+            const type = card.querySelector('.type-select').value;
+            let name = card.querySelector('.name-input').value;
+            
+            if (!fileName) return;
+            if (!name) name = `${yCol} (${fileName})`;
+
+            // Python code for this layer
+            pythonCode += `
+# Layer ${index + 1}: ${fileName}
+try:
+    df_${index} = pd.read_csv('${fileName}')
+    # 簡單排序 (適用於折線圖)
+    if '${type}' != 'bar':
+        df_${index} = df_${index}.sort_values(by='${xCol}')
+    
+    x = df_${index}['${xCol}']
+    y = df_${index}['${yCol}']
+    
+    if '${type}' == 'bar':
+        plt.bar(x, y, label='${name}', alpha=0.7)
+    elif '${type}' == 'scatter':
+        plt.scatter(x, y, label='${name}')
+    else: # line
+        plt.plot(x, y, marker='o', label='${name}')
+
+except FileNotFoundError:
+    print(f"錯誤: 找不到檔案 '${fileName}'，請確保 csv 檔與此腳本在同一目錄下。")
+except KeyError:
+    print(f"錯誤: 在 '${fileName}' 中找不到欄位 '${xCol}' 或 '${yCol}'。")
+`;
+        });
+
+        // 結尾設定
+        pythonCode += `
+# --- 裝飾與顯示 ---
+plt.title('${chartTitle}', fontsize=16)
+plt.xlabel('${xAxisTitle}', fontsize=12)
+plt.ylabel('${yAxisTitle}', fontsize=12)
+plt.legend()
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+
+print("正在顯示圖表...")
+plt.show()
+`;
+
+        // 觸發下載
+        const blob = new Blob([pythonCode], { type: 'text/x-python' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'plot_script.py';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    addNewLayer(); // 初始化
 </script>
 
 </body>
 </html>
+```
+
+### 如何使用生成的 Python 檔案
+
+當使用者點擊「**🐍 下載 Python**」後，會得到一個 `plot_script.py`。請按照以下步驟執行：
+
+1.  **環境準備**：
+    確保電腦已安裝 Python，並安裝需要的套件：
+    ```bash
+    pip install pandas matplotlib
+    ```
+
+2.  **檔案放置**：
+    將下載的 `plot_script.py` 與您使用的 **CSV 檔案放在同一個資料夾**中。
+
+3.  **執行**：
+    在終端機或 CMD 執行：
+    ```bash
+    python plot_script.py
