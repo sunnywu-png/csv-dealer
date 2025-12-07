@@ -3,141 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Pages ªı¥§®¶Àú¼ÒÀÀ</title>
+    <title>CSV é€šç”¨ç¹ªåœ–å·¥å…·</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; }
-        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; }
+        body { font-family: 'Segoe UI', sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f8f9fa; color: #333; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; }
         
-        .control-group { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
-        .slider-label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
-        input[type="range"] { width: 100%; cursor: pointer; }
-        .value-display { color: #007bff; font-weight: bold; }
+        .control-panel { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
         
-        #plot { width: 100%; height: 500px; }
+        select, input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; }
+        
+        button { 
+            width: 100%; background-color: #007bff; color: white; border: none; padding: 12px; 
+            font-size: 16px; border-radius: 5px; cursor: pointer; transition: 0.2s; 
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        #plot-area { width: 100%; height: 600px; border: 1px solid #ddd; margin-top: 20px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>ªı¥§®¶Àú (GitHub Pages ª©)</h1>
-    <p style="text-align:center; color:#666;">©Ò¦³¹Bºâ¬Ò¦bÂsÄı¾¹§¹¦¨¡AµL»İ«áºİ¦øªA¾¹</p>
-
-    <div class="control-group">
-        <div class="slider-label">
-            <label>Damping (b)</label>
-            <span id="val_b" class="value-display">0.1</span>
+    <h1>CSV Data Viewer</h1>
+    
+    <div class="control-panel">
+        <div class="input-group">
+            <label for="csv-file">1. é¸æ“‡ CSV æª”æ¡ˆï¼š</label>
+            <input type="file" id="csv-file" accept=".csv">
         </div>
-        <input type="range" id="b" min="0" max="5" step="0.05" value="0.1">
 
-        <div class="slider-label">
-            <label>Amplitude (A)</label>
-            <span id="val_A" class="value-display">1</span>
+        <div id="column-selectors" class="hidden">
+            <div class="input-group">
+                <label for="x-axis">2. é¸æ“‡ X è»¸ (æ©«è»¸)ï¼š</label>
+                <select id="x-axis"></select>
+            </div>
+            <div class="input-group">
+                <label for="y-axis">3. é¸æ“‡ Y è»¸ (ç¸±è»¸)ï¼š</label>
+                <select id="y-axis"></select>
+            </div>
+            <button id="btn-plot">é–‹å§‹ç¹ªåœ– (Plot)</button>
         </div>
-        <input type="range" id="A" min="0.1" max="5" step="0.1" value="1">
-
-        <div class="slider-label">
-            <label>Spring Const (k)</label>
-            <span id="val_k" class="value-display">1</span>
-        </div>
-        <input type="range" id="k" min="0.1" max="10" step="0.1" value="1">
     </div>
 
-    <div id="plot"></div>
+    <div id="plot-area"></div>
 </div>
 
 <script>
-    // 1. ©w¸q¼Æ¾Ç¹Bºâ¨ç¼Æ (¹ïÀ³­ì¥» Python ªºÅŞ¿è)
-    function calculateData(b, A, k) {
-        let t = [];
-        let y = [];
-        let steps = 500;
-        let maxTime = 20;
+    let csvData = []; // å„²å­˜è§£æå¾Œçš„è³‡æ–™
+    
+    // ç›£è½æª”æ¡ˆä¸Šå‚³
+    document.getElementById('csv-file').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
 
-        // ²£¥Í®É¶¡ÂI t
-        for (let i = 0; i <= steps; i++) {
-            t.push(i * (maxTime / steps));
-        }
-
-        // ­pºâ¦ì²¾ y
-        // ¬°¤FÁ×§K¦b JS ³B²z½ÆÂøªº½Æ¼Æ¹Bºâ®w¡A§Ú­Ìª½±µ®i¶}¤½¦¡
-        // §Aªº Python ÅŞ¿è¡Gy = A * (exp(r1*t) - exp(r2*t)) / (r1 - r2)
-        
-        let delta = b * b - k;
-
-        for (let i = 0; i < t.length; i++) {
-            let time = t[i];
-            let val = 0;
-
-            if (delta < 0) {
-                // ¤íªı¥§ (Underdamped): b^2 < k
-                // ¼Æ¾Ç±À¾É«á¡A­ì¥»ªº½Æ¼Æ¤½¦¡·|ÅÜ¦¨¹ê¼Æ§Î¦¡¡G
-                // y = (A / omega) * exp(-b*t) * sin(omega*t)
-                let omega = Math.sqrt(k - b * b);
-                if (omega === 0) omega = 0.0001; // Á×§K°£¥H¹s
-                val = (A / omega) * Math.exp(-b * time) * Math.sin(omega * time);
-            } else {
-                // ¹Lªı¥§ (Overdamped) ©Î Á{¬Éªı¥§: b^2 >= k
-                let term = Math.sqrt(delta);
-                let r1 = -b + term;
-                let r2 = -b - term;
+        // ä½¿ç”¨ PapaParse è§£æ CSV
+        Papa.parse(file, {
+            header: true, // å‡è¨­ç¬¬ä¸€è¡Œæ˜¯æ¨™é¡Œ
+            dynamicTyping: true, // è‡ªå‹•åˆ¤æ–·æ•¸å­—
+            skipEmptyLines: true,
+            complete: function(results) {
+                csvData = results.data;
+                const headers = results.meta.fields;
                 
-                if (r1 === r2) {
-                     // Á{¬Éªı¥§¯S®í¸Ñ (Á×§K°£¥H¹s)
-                     val = A * time * Math.exp(-b * time);
+                if (headers && headers.length > 0) {
+                    populateSelectors(headers);
+                    document.getElementById('column-selectors').classList.remove('hidden');
                 } else {
-                    val = A * (Math.exp(r1 * time) - Math.exp(r2 * time)) / (r1 - r2);
+                    alert('ç„¡æ³•è®€å– CSV æ¨™é¡Œï¼Œè«‹ç¢ºèªæª”æ¡ˆæ ¼å¼ã€‚');
                 }
+            },
+            error: function(err) {
+                alert("è§£æå¤±æ•—ï¼š" + err.message);
             }
-            y.push(val);
+        });
+    });
+
+    // å¡«å……ä¸‹æ‹‰é¸å–®
+    function populateSelectors(headers) {
+        const xSelect = document.getElementById('x-axis');
+        const ySelect = document.getElementById('y-axis');
+        
+        // æ¸…ç©ºèˆŠé¸é …
+        xSelect.innerHTML = '';
+        ySelect.innerHTML = '';
+
+        headers.forEach((header, index) => {
+            let option1 = new Option(header, header);
+            let option2 = new Option(header, header);
+            
+            xSelect.add(option1);
+            ySelect.add(option2);
+        });
+
+        // é è¨­é¸å–å‰å…©å€‹æ¬„ä½
+        if (headers.length > 1) {
+            ySelect.selectedIndex = 1;
         }
-
-        return { t: t, y: y };
     }
 
-    // 2. µe¹Ï¨ç¼Æ
-    function drawPlot() {
-        // Àò¨ú¥Ø«e·Æ±ì¼Æ­È
-        let b = parseFloat(document.getElementById('b').value);
-        let A = parseFloat(document.getElementById('A').value);
-        let k = parseFloat(document.getElementById('k').value);
+    // é»æ“Šç¹ªåœ–æŒ‰éˆ•
+    document.getElementById('btn-plot').addEventListener('click', function() {
+        const xCol = document.getElementById('x-axis').value;
+        const yCol = document.getElementById('y-axis').value;
 
-        // §ó·sÅã¥Ü¤å¦r
-        document.getElementById('val_b').innerText = b;
-        document.getElementById('val_A').innerText = A;
-        document.getElementById('val_k').innerText = k;
+        // æå–è©²æ¬„ä½çš„æ•¸æ“š
+        const xData = csvData.map(row => row[xCol]);
+        const yData = csvData.map(row => row[yCol]);
 
-        // ­pºâ¼Æ¾Ú
-        let data = calculateData(b, A, k);
-
-        // Plotly ³]©w
-        let trace = {
-            x: data.t,
-            y: data.y,
-            mode: 'lines',
-            line: { color: '#007bff', width: 3 },
-            name: 'Displacement'
+        const trace = {
+            x: xData,
+            y: yData,
+            mode: 'lines+markers', // ç·šåŠ é»
+            type: 'scatter',
+            name: yCol,
+            marker: { size: 6 }
         };
 
-        let layout = {
-            title: 'Damped Oscillation Analysis',
-            xaxis: { title: 'Time (t)' },
-            yaxis: { title: 'Displacement (y)' },
-            margin: { t: 40, r: 20, b: 40, l: 50 }
+        const layout = {
+            title: `${yCol} vs ${xCol}`,
+            xaxis: { title: xCol },
+            yaxis: { title: yCol },
+            margin: { t: 50, l: 50, r: 30, b: 50 }
         };
 
-        // Ã¸»s
-        Plotly.newPlot('plot', [trace], layout, {responsive: true});
-    }
-
-    // 3. ¸j©w¨Æ¥ó¡G·í·Æ±ì©Ô°Ê®É¡A­«·sµe¹Ï
-    document.getElementById('b').addEventListener('input', drawPlot);
-    document.getElementById('A').addEventListener('input', drawPlot);
-    document.getElementById('k').addEventListener('input', drawPlot);
-
-    // ¤@¶}©l¥ıµe¤@¦¸
-    drawPlot();
+        Plotly.newPlot('plot-area', [trace], layout, {responsive: true});
+    });
 </script>
 
 </body>
