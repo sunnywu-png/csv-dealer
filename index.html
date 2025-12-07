@@ -3,193 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>進階 CSV 繪圖工具</title>
+    <title>多重 CSV 疊圖工具</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; color: #333; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+        :root { --primary: #2563eb; --danger: #dc2626; --bg: #f8fafc; --card: #ffffff; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: var(--bg); color: #334155; }
         
-        .control-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 20px; }
+        .container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
         
-        .input-group { display: flex; flex-direction: column; }
-        label { font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: #555; }
+        /* 左側控制面板 */
+        .sidebar { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); height: fit-content; }
+        .main-content { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+
+        h2, h3 { margin-top: 0; color: #1e293b; font-size: 1.2rem; margin-bottom: 15px; }
         
-        select, input[type="file"] { padding: 10px; border: 1px solid #ced4da; border-radius: 6px; background-color: #fff; font-size: 14px; }
-        select:focus, input:focus { outline: none; border-color: #007bff; box-shadow: 0 0 0 3px rgba(0,123,255,0.1); }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9rem; }
+        select, input[type="file"], input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
         
-        .action-area { text-align: center; margin-top: 10px; }
-        button { 
-            background-color: #007bff; color: white; border: none; padding: 12px 30px; 
-            font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: all 0.2s; 
-            box-shadow: 0 2px 5px rgba(0,123,255,0.3);
+        button { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-add { background-color: #10b981; color: white; margin-top: 10px; }
+        .btn-add:hover { background-color: #059669; }
+        
+        /* 檔案列表標籤 */
+        .file-tag { display: inline-block; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin: 2px; }
+
+        /* 已選圖層列表 (Series List) */
+        #series-list { margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; max-height: 400px; overflow-y: auto; }
+        .series-item { background: #f1f5f9; padding: 10px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .series-info { font-size: 0.85rem; }
+        .series-info strong { display: block; color: #0f172a; }
+        .btn-remove { background: transparent; color: var(--danger); width: auto; padding: 5px; font-size: 1.2rem; line-height: 1; }
+        .btn-remove:hover { background: #fee2e2; }
+
+        /* 手機版 RWD */
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
         }
-        button:hover { background-color: #0056b3; transform: translateY(-1px); }
-        button:active { transform: translateY(1px); }
         
-        #plot-area { width: 100%; height: 600px; border: 1px solid #eee; border-radius: 8px; margin-top: 20px; background: #fff; }
-        .hidden { display: none; }
-        .full-width { grid-column: 1 / -1; }
+        #plot-area { height: 600px; width: 100%; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📊 CSV 進階繪圖工具</h1>
-    
-    <div class="control-panel">
-        <div class="input-group full-width">
-            <label for="csv-file">📂 步驟 1：上傳 CSV 檔案</label>
-            <input type="file" id="csv-file" accept=".csv">
+    <div class="sidebar">
+        <h2>1. 資料來源</h2>
+        <div class="input-group">
+            <label>上傳 CSV (可多選)</label>
+            <input type="file" id="csv-files" accept=".csv" multiple> 
         </div>
+        <div id="file-status-area" style="margin-bottom: 20px;"></div>
 
-        <div id="column-selectors" class="hidden contents" style="display: contents;">
-            <div class="input-group">
-                <label for="x-axis">步驟 2：選擇 X 軸 (橫軸)</label>
-                <select id="x-axis"></select>
-            </div>
-            <div class="input-group">
-                <label for="y-axis">步驟 3：選擇 Y 軸 (縱軸)</label>
-                <select id="y-axis"></select>
-            </div>
-            <div class="input-group">
-                <label for="chart-type">步驟 4：圖表類型</label>
-                <select id="chart-type">
-                    <option value="scatter">折線圖 (Lines + Markers)</option>
-                    <option value="bar">長條圖 (Bar Chart)</option>
-                    <option value="markers">散佈圖 (Only Markers)</option>
-                </select>
-            </div>
-            <div class="action-area full-width">
-                <button id="btn-plot">🚀 開始繪圖</button>
-            </div>
+        <h2>2. 新增圖層 (Series)</h2>
+        <div class="input-group">
+            <label>選擇檔案來源</label>
+            <select id="source-file-select" disabled><option>請先上傳檔案</option></select>
+        </div>
+        <div class="input-group">
+            <label>X 軸欄位 (橫軸)</label>
+            <select id="x-axis-select"></select>
+        </div>
+        <div class="input-group">
+            <label>Y 軸欄位 (縱軸)</label>
+            <select id="y-axis-select"></select>
+        </div>
+        <div class="input-group">
+            <label>圖表類型</label>
+            <select id="chart-type">
+                <option value="scatter">折線圖 (Lines+Markers)</option>
+                <option value="bar">長條圖 (Bar)</option>
+                <option value="markers">散佈圖 (Markers Only)</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>圖例名稱 (選填)</label>
+            <input type="text" id="series-name" placeholder="例如：2023年數據">
+        </div>
+        <button id="btn-add-series" class="btn-add" disabled>+ 加入此圖層</button>
+
+        <div id="series-list">
+            <h3>已選圖層 (0)</h3>
+            <div id="series-container"></div>
         </div>
     </div>
 
-    <div id="plot-area"></div>
+    <div class="main-content">
+        <button id="btn-plot" class="btn-primary">🔄 更新圖表</button>
+        <div id="plot-area"></div>
+    </div>
 </div>
 
 <script>
-    let csvData = []; 
+    // 全域變數儲存資料
+    const filesData = {}; // 格式: { "filename1": { data: [], headers: [] }, ... }
+    let seriesList = [];  // 儲存使用者定義的圖層設定
 
-    // 1. 監聽檔案上傳
-    document.getElementById('csv-file').addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+    // 1. 監聽檔案上傳 (支援多檔)
+    document.getElementById('csv-files').addEventListener('change', function(event) {
+        const files = event.target.files;
+        if (!files.length) return;
 
-        Papa.parse(file, {
-            header: true,
-            dynamicTyping: true, // 自動轉換數字
-            skipEmptyLines: true,
-            complete: function(results) {
-                csvData = results.data;
-                const headers = results.meta.fields;
-                
-                if (headers && headers.length > 0) {
-                    populateSelectors(headers);
-                    // 顯示控制項 (移除 hidden class，並將 display 改為 contents 以配合 grid)
-                    const selectors = document.getElementById('column-selectors');
-                    selectors.classList.remove('hidden');
-                } else {
-                    alert('無法讀取 CSV 標題，請確認檔案格式 (UTF-8 編碼佳)。');
+        const statusArea = document.getElementById('file-status-area');
+        statusArea.innerHTML = '讀取中...';
+        
+        let loadedCount = 0;
+
+        Array.from(files).forEach(file => {
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    // 儲存解析後的資料
+                    filesData[file.name] = {
+                        data: results.data,
+                        headers: results.meta.fields
+                    };
+                    
+                    loadedCount++;
+                    // 當所有檔案都讀取完畢
+                    if (loadedCount === files.length) {
+                        updateFileSelect();
+                        displayLoadedFiles();
+                    }
                 }
-            },
-            error: function(err) {
-                alert("解析失敗：" + err.message);
-            }
+            });
         });
     });
 
-    // 2. 填充選單
-    function populateSelectors(headers) {
-        const xSelect = document.getElementById('x-axis');
-        const ySelect = document.getElementById('y-axis');
-        
+    // 顯示已載入的檔案標籤
+    function displayLoadedFiles() {
+        const names = Object.keys(filesData);
+        const area = document.getElementById('file-status-area');
+        area.innerHTML = names.map(n => `<span class="file-tag">📄 ${n}</span>`).join('');
+    }
+
+    // 更新「來源檔案」下拉選單
+    function updateFileSelect() {
+        const fileSelect = document.getElementById('source-file-select');
+        fileSelect.innerHTML = '';
+        fileSelect.disabled = false;
+
+        Object.keys(filesData).forEach(filename => {
+            fileSelect.add(new Option(filename, filename));
+        });
+
+        // 觸發一次欄位更新
+        updateColumnSelects();
+    }
+
+    // 當選擇不同檔案時，更新 X/Y 欄位選項
+    document.getElementById('source-file-select').addEventListener('change', updateColumnSelects);
+
+    function updateColumnSelects() {
+        const filename = document.getElementById('source-file-select').value;
+        const xSelect = document.getElementById('x-axis-select');
+        const ySelect = document.getElementById('y-axis-select');
+        const addBtn = document.getElementById('btn-add-series');
+
         xSelect.innerHTML = '';
         ySelect.innerHTML = '';
 
-        headers.forEach(header => {
-            xSelect.add(new Option(header, header));
-            ySelect.add(new Option(header, header));
-        });
+        if (!filesData[filename]) return;
 
-        // 智慧預選：嘗試將第二個欄位設為 Y 軸
-        if (headers.length > 1) ySelect.selectedIndex = 1;
+        const headers = filesData[filename].headers;
+        headers.forEach(h => {
+            xSelect.add(new Option(h, h));
+            ySelect.add(new Option(h, h));
+        });
+        
+        // 預設 Y 選第二個
+        if(headers.length > 1) ySelect.selectedIndex = 1;
+
+        addBtn.disabled = false;
     }
 
-    // 3. 繪圖邏輯
-    document.getElementById('btn-plot').addEventListener('click', function() {
-        const xCol = document.getElementById('x-axis').value;
-        const yCol = document.getElementById('y-axis').value;
+    // 2. 加入圖層 (Add Series)
+    document.getElementById('btn-add-series').addEventListener('click', function() {
+        const filename = document.getElementById('source-file-select').value;
+        const xCol = document.getElementById('x-axis-select').value;
+        const yCol = document.getElementById('y-axis-select').value;
         const type = document.getElementById('chart-type').value;
+        const customName = document.getElementById('series-name').value;
 
-        if (!xCol || !yCol) {
-            alert("請選擇 X 軸和 Y 軸");
+        // 產生一個唯一 ID 方便刪除
+        const id = Date.now();
+        const displayName = customName || `${yCol} (${filename})`;
+
+        const seriesConfig = {
+            id: id,
+            filename: filename,
+            xCol: xCol,
+            yCol: yCol,
+            type: type,
+            name: displayName
+        };
+
+        seriesList.push(seriesConfig);
+        renderSeriesList();
+        
+        // 自動觸發繪圖 (可選)
+        // drawChart(); 
+    });
+
+    // 渲染圖層列表 UI
+    function renderSeriesList() {
+        const container = document.getElementById('series-container');
+        const title = document.querySelector('#series-list h3');
+        container.innerHTML = '';
+        title.innerText = `已選圖層 (${seriesList.length})`;
+
+        seriesList.forEach((s, index) => {
+            const div = document.createElement('div');
+            div.className = 'series-item';
+            div.innerHTML = `
+                <div class="series-info">
+                    <strong>${s.name}</strong>
+                    <span style="color:#64748b">X: ${s.xCol} | Y: ${s.yCol}</span>
+                    <span style="font-size:0.8em; color:#94a3b8">${s.filename}</span>
+                </div>
+                <button class="btn-remove" onclick="removeSeries(${s.id})">×</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // 刪除圖層函數 (需設為全域以便 HTML onclick 呼叫)
+    window.removeSeries = function(id) {
+        seriesList = seriesList.filter(s => s.id !== id);
+        renderSeriesList();
+    };
+
+    // 3. 繪圖邏輯 (Render Chart)
+    document.getElementById('btn-plot').addEventListener('click', drawChart);
+
+    function drawChart() {
+        if (seriesList.length === 0) {
+            Plotly.newPlot('plot-area', [], {title: '請先加入圖層'});
             return;
         }
 
-        // --- 關鍵優化：資料整理與排序 ---
-        // 將 X 和 Y 結合成物件陣列，以便進行排序
-        let plotData = csvData.map(row => ({
-            x: row[xCol],
-            y: row[yCol]
-        })).filter(item => item.x != null && item.y != null); // 過濾掉空值
+        const traces = seriesList.map(s => {
+            const fileData = filesData[s.filename].data;
+            
+            // 提取與排序數據
+            let plotData = fileData.map(row => ({
+                x: row[s.xCol],
+                y: row[s.yCol]
+            })).filter(item => item.x != null && item.y != null);
 
-        // 如果是折線圖，通常需要依照 X 軸排序，否則線條會亂跑
-        if (type === 'scatter' || type === 'lines') {
-            plotData.sort((a, b) => {
-                // 嘗試處理日期或數字排序
-                return a.x > b.x ? 1 : -1;
-            });
-        }
+            // 針對折線圖排序 X 軸
+            if (s.type === 'scatter' || s.type === 'bar') {
+                plotData.sort((a, b) => (a.x > b.x ? 1 : -1));
+            }
 
-        // 拆回 X 和 Y 陣列
-        const xData = plotData.map(d => d.x);
-        const yData = plotData.map(d => d.y);
-        // ----------------------------------
-
-        // 設定 Plotly 參數
-        let trace = {
-            x: xData,
-            y: yData,
-            name: yCol
-        };
-
-        // 根據類型調整樣式
-        if (type === 'bar') {
-            trace.type = 'bar';
-        } else if (type === 'markers') {
-            trace.mode = 'markers';
-            trace.type = 'scatter';
-            trace.marker = { size: 10, opacity: 0.7 };
-        } else { // 預設 scatter (折線圖)
-            trace.mode = 'lines+markers';
-            trace.type = 'scatter';
-            trace.line = { shape: 'linear' }; // 可改為 'spline' 變平滑曲線
-        }
+            const trace = {
+                x: plotData.map(d => d.x),
+                y: plotData.map(d => d.y),
+                name: s.name,
+                type: s.type === 'bar' ? 'bar' : 'scatter',
+                mode: s.type === 'markers' ? 'markers' : (s.type === 'bar' ? undefined : 'lines+markers')
+            };
+            
+            return trace;
+        });
 
         const layout = {
-            title: {
-                text: `${yCol} vs ${xCol}`,
-                font: { size: 24 }
-            },
-            xaxis: { title: xCol, automargin: true },
-            yaxis: { title: yCol, automargin: true },
-            margin: { t: 60, l: 60, r: 40, b: 60 },
+            title: '多數據整合圖表',
+            xaxis: { title: 'X 軸' }, // 因為可能有多個不同單位的 X，這裡給通用名稱
+            yaxis: { title: '數值' },
+            margin: { t: 50, l: 50, r: 30, b: 50 },
             hovermode: 'closest',
-            paper_bgcolor: "rgba(0,0,0,0)", // 透明背景
-            plot_bgcolor: "rgba(0,0,0,0)"
-        };
-        
-        const config = {
-            responsive: true,
-            displayModeBar: true, // 顯示工具列 (下載圖片、縮放等)
-            displaylogo: false
+            legend: { x: 1, xanchor: 'right', y: 1 }
         };
 
-        Plotly.newPlot('plot-area', [trace], layout, config);
-    });
+        Plotly.newPlot('plot-area', traces, layout, {responsive: true});
+    }
 </script>
 
 </body>
